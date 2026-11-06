@@ -16,3 +16,7 @@ npx skills add itzLan1126/skills
 | ---------- | ------------------------------------------------------ | --------------------------------------------------- |
 | `close-pr` | PR 合并或关闭后，清理其本地及远程分支并切回默认分支    | `npx skills add itzLan1126/skills --skill close-pr` |
 | `git`      | 检查 Git 改动、组织逻辑提交并编写 Conventional Commits | `npx skills add itzLan1126/skills --skill git`      |
+
+## 许可证
+
+[MIT](LICENSE)
