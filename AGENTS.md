@@ -1,19 +1,33 @@
-# 仓库维护约定
+# AGENTS.md
 
-## 技能规范（与 `tests/test_spec.py` 一致）
+This repo contains personal skills in the [Agent Skills](https://agentskills.io/specification) format.
 
-- 存放路径：`skills/<skill-name>/SKILL.md`，目录名为小写字母、数字及连字符（正则 `^[a-z0-9]+(-[a-z0-9]+)*$`），最多 64 字符。
-- Frontmatter 字段限制：仅允许 `name`（与目录名一致）、`description`（1-1024 字符）、`license`、`compatibility`（最多 500 字符）、`metadata`（字符串映射）、`allowed-tools`（空格分隔列表）。严禁添加额外未定义字段。
-- 篇幅限制：`SKILL.md` 全文严格控制在 500 行以内。较长材料按需放入 `references/` 并以相对路径链接。
+## Layout
 
-## 维护与验证规则
+| Item        | Location                    |
+| ----------- | --------------------------- |
+| Skill entry | `skills/<name>/SKILL.md`    |
+| References  | `skills/<name>/references/` |
+| Scripts     | `skills/<name>/scripts/`    |
+| Tests       | `tests/`                    |
 
-- 语言约定：仓库文档（README、提交记录）使用中文；技能正文及描述可根据适用场景使用中文或英文；保留命令、代码、路径及工具名的原文。
-- 相对路径：引用文件必须保持相对路径有效。
-- 验证要求：新增或修改技能后，必须运行规范测试并通过：
+## Skill Preferences
 
-  ```bash
-  python3 -m unittest discover -s tests -v
-  ```
+- **Intent vs. Execution**: Use AI to interpret intent and context (e.g., identify target PR from conversation). Prefer deterministic tools (scripts, CLIs, tests, linters) for execution and validation.
+- **Scripts**: Put deterministic steps in `scripts/`, invoke them with relative paths, and add behavior tests in `tests/`.
+- **Links**: Keep every relative file path valid (unverified by tests).
+- **Spec**: `tests/test_spec.py` is the source of truth for naming, frontmatter, and length rules. Read it before authoring a skill.
 
-  测试依赖：`python3 -m pip install -r requirements.txt`。
+## Verification
+
+After adding or modifying a skill, run tests until they pass:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+If `.venv` is missing, initialize it first:
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+```
