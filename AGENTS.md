@@ -14,6 +14,7 @@ This repo contains personal skills in the [Agent Skills](https://agentskills.io/
 ## Skill Preferences
 
 - **Intent vs. Execution**: Use AI to interpret intent and context (e.g., identify target PR from conversation). Prefer deterministic tools (scripts, CLIs, tests, linters) for execution and validation.
+- **Fix the Tool First**: When changing a script would reduce agent uncertainty or improve efficiency, change the script instead of adding instructions to `SKILL.md`.
 - **Scripts**: Put deterministic steps in `scripts/`, invoke them with relative paths, and add behavior tests in `tests/`.
 - **Links**: Keep every relative file path valid (unverified by tests).
 - **Spec**: `tests/test_spec.py` is the source of truth for naming, frontmatter, and length rules. Read it before authoring a skill.
