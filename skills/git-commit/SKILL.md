@@ -1,15 +1,15 @@
 ---
-name: git
-description: Inspect Git changes, organize logical commits, and write Conventional Commits messages. Use for /git, explicit commit requests, message drafting, commit planning, and commit review. Excludes general Git troubleshooting, branch strategy, and history repair.
+name: git-commit
+description: Inspect Git changes, organize logical commits, and write Conventional Commits messages. Use for /git-commit, explicit commit requests, message drafting, commit planning, and commit review. Excludes general Git troubleshooting, branch strategy, and history repair.
 ---
 
 # Git Commit Workflow
 
 ## Execution and Scope
 
-- Treat `/git` or a clear request to commit as authorization to create local commits. Reuse existing authorization; do not request routine confirmation.
+- Treat `/git-commit` or a clear request to commit as authorization to create local commits. Reuse existing authorization; do not request routine confirmation.
 - Keep drafting, review, and planning read-only. Do not stage or commit unless execution is requested. If the user requires approval, prepare the complete message or plan before waiting.
-- Honor the requested repository, files, changes, and staged-only limits. A bare `/git` or an unrestricted commit request covers the current repository's staged, unstaged, and untracked changes. Identify the intended project changes before including files whose purpose is unclear.
+- Honor the requested repository, files, changes, and staged-only limits. A bare `/git-commit` or an unrestricted commit request covers the current repository's staged, unstaged, and untracked changes. Identify the intended project changes before including files whose purpose is unclear.
 - Check relevant contribution rules and commit-message configuration; use this skill's message defaults only where the repository leaves a choice.
 
 ## Inspect and Organize

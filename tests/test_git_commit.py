@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'git' / 'scripts' / 'git_commit.py'
+SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'git-commit' / 'scripts' / 'git_commit.py'
 ENV = {**os.environ, 'GIT_AUTHOR_NAME': 't', 'GIT_AUTHOR_EMAIL': 't@t', 'GIT_COMMITTER_NAME': 't',
        'GIT_COMMITTER_EMAIL': 't@t', 'GIT_CONFIG_GLOBAL': os.devnull}
 BASE = ''.join(f'line {n}\n' for n in range(1, 21))
