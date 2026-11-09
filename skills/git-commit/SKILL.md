@@ -16,6 +16,8 @@ description: Inspect Git changes, organize logical commits, and write Convention
 
 Use the actual diff as the primary evidence. Inspect the index and working tree separately, and read relevant untracked files directly.
 
+If a merge, cherry-pick, revert, or conflict is in progress, stop and report it before staging anything.
+
 For a message request based only on a supplied summary, use those facts without inventing implementation details or motivation.
 
 Group changes by purpose:
@@ -102,6 +104,7 @@ Use issue references, migration instructions, and reverted commit hashes only wh
    | --- | --- |
    | `0` | Commit created and verified; prints `<short-hash> <subject>`. |
    | `3` | Commit created and printed, but a hook changed its content. Count it as created; stop and report the difference. |
+   | `4` | No commit created; a merge, cherry-pick, revert, or conflict is in progress. Stop and report. |
    | Other | No commit created: lint, staging, arguments, or `git commit` failed. |
 3. Recheck repository state and process the next in-scope group until the requested work is complete.
 

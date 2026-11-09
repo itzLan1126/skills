@@ -162,6 +162,23 @@ class GitCommitTest(unittest.TestCase):
         self.assertIn('commit created', result.stderr)
         self.assertEqual(self.git('rev-list', '--count', 'HEAD').strip(), '2')
 
+    def test_commit_refuses_operation_in_progress(self):
+        self.git('checkout', '-q', '-b', 'other')
+        self.write('app.txt', 'other\n')
+        self.git('commit', '-q', '-am', 'other')
+        self.git('checkout', '-q', 'main')
+        self.write('app.txt', 'main\n')
+        self.git('commit', '-q', '-am', 'main')
+        subprocess.run(['git', 'merge', '-q', 'other'], cwd=self.repo, env=ENV, capture_output=True)
+        for resolved in (False, True):
+            with self.subTest(resolved=resolved):
+                if resolved:
+                    self.git('add', 'app.txt')
+                result = self.run_script('commit', input='feat: merge other\n')
+                self.assertEqual(result.returncode, 4)
+                self.assertIn('in progress', result.stderr)
+                self.assertEqual(self.git('rev-list', '--count', 'HEAD').strip(), '2')
+
 
 if __name__ == '__main__':
     unittest.main()

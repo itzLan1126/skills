@@ -106,7 +106,21 @@ def cmd_stage(args):
     return 0
 
 
+def operation_in_progress():
+    for ref in ('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD'):
+        if git('rev-parse', '-q', '--verify', ref, check=False).returncode == 0:
+            return ref
+    if git('diff', '--name-only', '--diff-filter=U').stdout:
+        return 'unmerged files'
+    return None
+
+
 def cmd_commit(args):
+    operation = operation_in_progress()
+    if operation:
+        print(f'error: {operation} found; a merge, cherry-pick, revert, or conflict is in progress',
+              file=sys.stderr)
+        return 4
     text = read_message(args.message)
     if not args.skip_lint and report_lint(text, args.max_header):
         return 1
