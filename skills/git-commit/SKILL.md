@@ -10,7 +10,7 @@ description: Inspect Git changes, organize logical commits, and write Convention
 - Treat `/git-commit` or a clear request to commit as authorization to create local commits. Reuse existing authorization; do not request routine confirmation.
 - Keep drafting, review, and planning read-only. Do not stage or commit unless execution is requested. If the user requires approval, prepare the complete message or plan before waiting.
 - Honor the requested repository, files, changes, and staged-only limits. A bare `/git-commit` or an unrestricted commit request covers the current repository's staged, unstaged, and untracked changes. Identify the intended project changes before including files whose purpose is unclear.
-- Check relevant contribution rules and commit-message configuration; use this skill's message defaults only where the repository leaves a choice.
+- Check commit rules in commitlint configuration (such as `commitlint.config.js` or `.commitlintrc.json`) and `CONTRIBUTING.md`, and read `git log --oneline -10` for established scopes and style. Use this skill's message defaults only where the repository leaves a choice.
 
 ## Inspect and Organize
 
@@ -36,6 +36,8 @@ Adding specific files does not exclude content that was already staged, so act o
 | Empty | Stage only the files or hunks for the next planned commit. |
 | One complete, in-scope logical change | Preserve that selection and commit it first. Do not add unstaged content to it. |
 | Mixed purposes, incomplete change, or content outside the requested scope | Do not commit it as-is. Prepare a minimal plan to isolate the intended change while preserving all work. Reorganize the existing selection only with explicit permission to split or reorganize staged changes; a general commit request is not enough. When authorized, keep out-of-scope staged content for later and never include it in the current commit. |
+
+Do not stage secrets such as `.env` files, credential files, or private keys; ask the user before staging a suspicious file.
 
 Stage whole files with `git add -- <specific-files>`. To stage part of a tracked file, list its unstaged hunks, then stage the chosen hunk IDs:
 
@@ -77,7 +79,8 @@ Use an established repository scope when available; otherwise choose a specific 
 - Aim for fewer than 50 characters in the subject when clarity permits.
 - Avoid vague subjects such as `update`, `fix bug`, or `misc` and unsupported claims about results or motivation.
 - Add a body only for useful context: verified motivation, behavior, constraints, design decisions, or impact. Do not repeat the subject or force a fixed paragraph count.
-- Mark an incompatible change with `!` before the colon and a `BREAKING CHANGE:` footer that says what breaks, with migration guidance when known.
+- Mark an incompatible change with `!` before the colon or a `BREAKING CHANGE:` footer. A footer says what breaks, with migration guidance when known.
+- Write footers as `Token: value`, such as `Refs: #123`. Use `-` in place of spaces in a token.
 
 ```text
 fix(auth): reject expired tokens
