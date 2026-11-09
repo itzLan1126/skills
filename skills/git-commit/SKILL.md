@@ -31,10 +31,10 @@ Group changes by purpose:
 
 Adding specific files does not exclude content that was already staged, so act on the existing index first:
 
-| Existing index | Action |
-| --- | --- |
-| Empty | Stage only the files or hunks for the next planned commit. |
-| One complete, in-scope logical change | Preserve that selection and commit it first. Do not add unstaged content to it. |
+| Existing index                                                            | Action                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Empty                                                                     | Stage only the files or hunks for the next planned commit.                                                                                                                                                                                                                                                                                                      |
+| One complete, in-scope logical change                                     | Preserve that selection and commit it first. Do not add unstaged content to it.                                                                                                                                                                                                                                                                                 |
 | Mixed purposes, incomplete change, or content outside the requested scope | Do not commit it as-is. Prepare a minimal plan to isolate the intended change while preserving all work. Reorganize the existing selection only with explicit permission to split or reorganize staged changes; a general commit request is not enough. When authorized, keep out-of-scope staged content for later and never include it in the current commit. |
 
 Do not stage secrets such as `.env` files, credential files, or private keys; ask the user before staging a suspicious file.
@@ -56,19 +56,19 @@ Use [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
 
 Choose the type from the change's primary purpose, not its filenames.
 
-| Type | Purpose |
-| --- | --- |
-| `feat` | New capability for users or consuming code |
-| `fix` | Correction of broken behavior or a regression |
-| `docs` | Documentation-only change |
-| `style` | Formatting or code style without behavior changes |
+| Type       | Purpose                                                  |
+| ---------- | -------------------------------------------------------- |
+| `feat`     | New capability for users or consuming code               |
+| `fix`      | Correction of broken behavior or a regression            |
+| `docs`     | Documentation-only change                                |
+| `style`    | Formatting or code style without behavior changes        |
 | `refactor` | Internal restructuring without intended behavior changes |
-| `perf` | Performance or resource-use improvement |
-| `test` | Test changes without production behavior changes |
-| `build` | Build system, packaging, or dependency change |
-| `ci` | CI/CD configuration or automation |
-| `chore` | Maintenance not covered by another type |
-| `revert` | Reversal of a previous change |
+| `perf`     | Performance or resource-use improvement                  |
+| `test`     | Test changes without production behavior changes         |
+| `build`    | Build system, packaging, or dependency change            |
+| `ci`       | CI/CD configuration or automation                        |
+| `chore`    | Maintenance not covered by another type                  |
+| `revert`   | Reversal of a previous change                            |
 
 Use an established repository scope when available; otherwise choose a specific module, feature, package, or subsystem. Omit vague scopes that add no information.
 
@@ -103,12 +103,13 @@ Use issue references, migration instructions, and reverted commit hashes only wh
 
    The script lints the message, commits the index, and verifies that the commit records exactly the staged content. Pass `--max-header N` for a configured header limit (default 72). When the repository defines its own message rules, follow them and pass `--skip-lint`.
 
-   | Exit | Meaning |
-   | --- | --- |
-   | `0` | Commit created and verified; prints `<short-hash> <subject>`. |
-   | `3` | Commit created and printed, but a hook changed its content. Count it as created; stop and report the difference. |
-   | `4` | No commit created; a merge, cherry-pick, revert, or conflict is in progress. Stop and report. |
-   | Other | No commit created: lint, staging, arguments, or `git commit` failed. |
+   | Exit  | Meaning                                                                                                          |
+   | ----- | ---------------------------------------------------------------------------------------------------------------- |
+   | `0`   | Commit created and verified; prints `<short-hash> <subject>`.                                                    |
+   | `3`   | Commit created and printed, but a hook changed its content. Count it as created; stop and report the difference. |
+   | `4`   | No commit created; a merge, cherry-pick, revert, or conflict is in progress. Stop and report.                    |
+   | Other | No commit created: lint, staging, arguments, or `git commit` failed.                                             |
+
 3. Recheck repository state and process the next in-scope group until the requested work is complete.
 
 If a commit or required check fails, stop the commit sequence and inspect the cause and current state. Fix only issues within existing authorization, then recheck the staged diff before retrying. If a hook changed files or the index, reassess the affected content before continuing.
