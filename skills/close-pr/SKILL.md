@@ -26,11 +26,12 @@ bash <skill-dir>/scripts/close-pr.sh <n>
 
 The script, in order:
 
-1. Stops if `git status --porcelain` shows any change, including untracked files. Nothing else runs.
-2. Stops if the PR is `OPEN`; the user must merge it manually. `MERGED` and `CLOSED` continue.
-3. Deletes the remote branch on `origin` unless the PR comes from a fork, the branch is the default or protected branch, or it is already gone.
-4. Switches to the repository's default branch and runs `git pull --ff-only --prune`.
-5. Force-deletes the local branch (`git branch -D`) if it exists.
+1. Stops if run inside a linked worktree, or if `git status --porcelain` shows any change, including untracked files. Nothing else runs.
+2. Stops if the PR is `OPEN`; the user must merge it manually. `MERGED` and `CLOSED` continue. Also stops if the local branch has commits that are not in the PR head, such as work committed after the merge.
+3. If another worktree has the PR branch checked out, removes it with `git worktree remove` (no `--force`). Stops instead if it has local changes, a live Claude Code session holds its lock, or it carries any other lock.
+4. Deletes the remote branch on `origin` unless the PR comes from a fork, the branch is the default or protected branch, or it is already gone.
+5. Switches to the repository's default branch and runs `git pull --ff-only --prune`.
+6. Force-deletes the local branch (`git branch -D`) if it exists.
 
 ## Report
 
