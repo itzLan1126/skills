@@ -30,32 +30,26 @@ if [[ "$state" == "OPEN" ]]; then
 fi
 
 default=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
-local_tip=$(git rev-parse --verify --quiet "refs/heads/$branch" || true)
-
-git cat-file -e "$head^{commit}" 2>/dev/null || git fetch --quiet origin "refs/pull/$pr/head" || true
-if [[ "$branch" != "$default" && -n "$local_tip" ]] && ! git merge-base --is-ancestor "$local_tip" "$head" 2>/dev/null; then
-  echo "stop: local $branch has commits that are not in PR #$pr; push or move them first" >&2
+default_wt=$(git for-each-ref --format='%(worktreepath)' "refs/heads/$default")
+if [[ -n "$default_wt" && "$default_wt" != "$(git rev-parse --show-toplevel)" ]]; then
+  echo "stop: $default is checked out in worktree $default_wt; switch it to another branch first" >&2
   exit 1
 fi
 
-wt_info=$(git worktree list --porcelain | awk -v b="branch refs/heads/$branch" '
-  BEGIN { RS = ""; FS = "\n" }
-  NR > 1 { hit = 0; lock = ""
-    for (i = 1; i <= NF; i++) { if ($i == b) hit = 1; if ($i ~ /^locked/) lock = $i }
-    if (hit) { print substr($1, 10); print lock; exit } }')
-if [[ -n "$wt_info" ]]; then
-  { read -r wt; read -r lock || true; } <<<"$wt_info"
-  if [[ -n "$lock" ]]; then
-    pid_re='\(pid ([0-9]+)'
-    if ! [[ "$lock" =~ $pid_re ]] || kill -0 "${BASH_REMATCH[1]}" 2>/dev/null; then
-      echo "stop: worktree $wt is $lock; exit that session or unlock it first" >&2
-      exit 1
-    fi
-    git worktree unlock "$wt"
+local_tip=""
+[[ "$branch" != "$default" ]] && local_tip=$(git rev-parse --verify --quiet "refs/heads/$branch" || true)
+
+if [[ -n "$local_tip" ]]; then
+  git cat-file -e "$head^{commit}" 2>/dev/null || git fetch --quiet origin "refs/pull/$pr/head"
+  if ! git merge-base --is-ancestor "$local_tip" "$head"; then
+    echo "stop: local $branch has commits that are not in PR #$pr; push or move them first" >&2
+    exit 1
   fi
-  git worktree remove "$wt" \
-    || { echo "stop: worktree $wt has local changes; commit or remove them first" >&2; exit 1; }
-  echo "worktree: removed $wt"
+  wt=$(git for-each-ref --format='%(worktreepath)' "refs/heads/$branch")
+  if [[ -n "$wt" && "$wt" != "$(git rev-parse --show-toplevel)" ]]; then
+    git worktree remove "$wt" || { echo "stop: cannot remove worktree $wt (see above)" >&2; exit 1; }
+    echo "worktree: removed $wt"
+  fi
 fi
 
 if [[ "$cross" == "true" ]]; then
@@ -75,11 +69,11 @@ git switch --quiet "$default"
 git pull --quiet --ff-only --prune
 echo "switched to: $default (pulled)"
 
-if [[ "$branch" == "$default" ]]; then
-  echo "local branch: skipped (default branch)"
-elif git show-ref --verify --quiet "refs/heads/$branch"; then
+if [[ -n "$local_tip" ]]; then
   git branch --quiet -D "$branch"
   echo "local branch: deleted (was $(git rev-parse --short "$local_tip"))"
+elif [[ "$branch" == "$default" ]]; then
+  echo "local branch: skipped (default branch)"
 else
   echo "local branch: not found"
 fi

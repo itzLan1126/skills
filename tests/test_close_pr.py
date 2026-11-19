@@ -9,7 +9,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'close-pr' / 'scripts'
 FAKE_GH = '''#!/bin/sh
 echo "$*" >> "$FAKE_GH_LOG"
 case "$1 $2" in
-  "pr view") printf '%s\\tfeat\\tfalse\\t%s\\n' "$FAKE_GH_STATE" "$FAKE_GH_HEAD" ;;
+  "pr view") printf '%s\\t%s\\t%s\\t%s\\n' "$FAKE_GH_STATE" "${FAKE_GH_BRANCH:-feat}" "${FAKE_GH_CROSS:-false}" "$FAKE_GH_HEAD" ;;
   "repo view") echo main ;;
   api*) echo false ;;
 esac
@@ -42,12 +42,14 @@ class ClosePrTest(unittest.TestCase):
             subprocess.run(['git', *cmd], check=True, env=self.env)
         self.head = self.git('rev-parse', 'feat').strip()
 
-    def run_script(self, state, head=None):
+    def run_script(self, state, head=None, branch='feat', cross='false'):
         return subprocess.run(['bash', str(SCRIPT), '#7'], cwd=self.work, capture_output=True, text=True,
-                              env={**self.env, 'FAKE_GH_STATE': state, 'FAKE_GH_HEAD': head or self.head})
+                              env={**self.env, 'FAKE_GH_STATE': state, 'FAKE_GH_HEAD': head or self.head,
+                                   'FAKE_GH_BRANCH': branch, 'FAKE_GH_CROSS': cross})
 
     def git(self, *args, cwd=None):
-        return subprocess.run(['git', *args], cwd=cwd or self.work, capture_output=True, text=True).stdout
+        return subprocess.run(['git', *args], cwd=cwd or self.work, capture_output=True, text=True,
+                              env=self.env, check=True).stdout
 
     def test_merged_cleans_up(self):
         result = self.run_script('MERGED')
@@ -79,20 +81,40 @@ class ClosePrTest(unittest.TestCase):
         self.assertIn('feat', self.git('branch', cwd=self.origin))
 
     def test_commits_after_pr_head_stop(self):
-        subprocess.run(['git', 'commit', '-q', '--allow-empty', '-m', 'after merge'], cwd=self.work,
-                       env=self.env, check=True)
+        self.git('commit', '-q', '--allow-empty', '-m', 'after merge')
         result = self.run_script('MERGED')
         self.assertEqual(result.returncode, 1)
         self.assertIn('not in PR #7', result.stderr)
         self.assertIn('after merge', self.git('log', '-1', '--format=%s', 'feat'))
         self.assertIn('feat', self.git('branch', cwd=self.origin))
 
+    def test_fork_pr_named_like_default_branch_keeps_worktree(self):
+        wt = self.work.parent / 'mywt'
+        self.git('switch', '-q', '-c', 'side', 'main')
+        self.git('worktree', 'add', '-q', str(wt), 'main')
+        self.git('commit', '-q', '--allow-empty', '-m', 'local only', cwd=wt)
+        result = self.run_script('MERGED', branch='main', cross='true')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('stop: main is checked out in worktree', result.stderr)
+        self.assertTrue(wt.exists())
+        self.assertIn('local only', self.git('log', '-1', '--format=%s', 'main'))
+
+    def test_default_branch_in_other_worktree_stops_before_changes(self):
+        wt = self.work.parent / 'mywt'
+        self.git('worktree', 'add', '-q', '--detach', str(wt))
+        self.git('switch', '-q', 'main', cwd=wt)
+        result = self.run_script('MERGED')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('stop: main is checked out in worktree', result.stderr)
+        self.assertEqual(self.git('branch', '--show-current').strip(), 'feat')
+        self.assertIn('feat', self.git('branch', cwd=self.origin))
+
     def test_fetches_unknown_pr_head(self):
         other = self.work.parent / 'other'
-        subprocess.run(['git', 'clone', '-q', '-b', 'feat', str(self.origin), str(other)], check=True, env=self.env)
-        for cmd in (['commit', '-q', '--allow-empty', '-m', 'suggestion'], ['push', '-q', 'origin', 'HEAD:refs/pull/7/head']):
-            subprocess.run(['git', *cmd], cwd=other, check=True, env=self.env)
-        head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=other, capture_output=True, text=True).stdout.strip()
+        self.git('clone', '-q', '-b', 'feat', str(self.origin), str(other))
+        self.git('commit', '-q', '--allow-empty', '-m', 'suggestion', cwd=other)
+        self.git('push', '-q', 'origin', 'HEAD:refs/pull/7/head', cwd=other)
+        head = self.git('rev-parse', 'HEAD', cwd=other).strip()
         result = self.run_script('MERGED', head=head)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('feat', self.git('branch'))
@@ -119,24 +141,7 @@ class ClosePrTest(unittest.TestCase):
         self.assertNotIn('feat', self.git('branch'))
         self.assertNotIn('feat', self.git('branch', cwd=self.origin))
 
-    def test_removes_worktree_with_stale_lock(self):
-        wt = self.add_worktree()
-        dead = subprocess.Popen(['true'])
-        dead.wait()
-        self.git('worktree', 'lock', '--reason', f'claude session x (pid {dead.pid} start t)', str(wt))
-        result = self.run_script('MERGED')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse(wt.exists())
-
-    def test_worktree_in_use_stops(self):
-        wt = self.add_worktree()
-        self.git('worktree', 'lock', '--reason', f'claude session x (pid {os.getpid()} start t)', str(wt))
-        result = self.run_script('MERGED')
-        self.assertEqual(result.returncode, 1)
-        self.assertIn(f'pid {os.getpid()}', result.stderr)
-        self.assert_untouched(wt)
-
-    def test_manual_lock_stops(self):
+    def test_locked_worktree_stops(self):
         wt = self.add_worktree()
         self.git('worktree', 'lock', '--reason', 'on usb drive', str(wt))
         result = self.run_script('MERGED')
@@ -149,7 +154,7 @@ class ClosePrTest(unittest.TestCase):
         (wt / 'scratch.txt').write_text('x')
         result = self.run_script('MERGED')
         self.assertEqual(result.returncode, 1)
-        self.assertIn('local changes', result.stderr)
+        self.assertIn('cannot remove worktree', result.stderr)
         self.assert_untouched(wt)
 
     def test_run_inside_worktree_stops(self):
