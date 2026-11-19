@@ -30,23 +30,14 @@ if [[ "$state" == "OPEN" ]]; then
 fi
 
 default=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
-
-# Squash and rebase merges need branch -D, which would also drop commits made after the PR's last
-# push. Stop unless every local commit is already in the PR head.
 local_tip=$(git rev-parse --verify --quiet "refs/heads/$branch" || true)
-# The PR head may exist only on GitHub (e.g. an accepted suggestion); refs/pull/<n>/head outlives the branch.
-if [[ -n "$local_tip" ]] && ! git cat-file -e "$head^{commit}" 2>/dev/null; then
-  git fetch --quiet origin "refs/pull/$pr/head" || true
-fi
+
+git cat-file -e "$head^{commit}" 2>/dev/null || git fetch --quiet origin "refs/pull/$pr/head" || true
 if [[ "$branch" != "$default" && -n "$local_tip" ]] && ! git merge-base --is-ancestor "$local_tip" "$head" 2>/dev/null; then
   echo "stop: local $branch has commits that are not in PR #$pr; push or move them first" >&2
   exit 1
 fi
 
-# The branch can't be deleted while a linked worktree has it checked out. Remove that worktree
-# only when no live session holds its lock and git agrees it has no local changes (no --force).
-git worktree prune
-# Records are blank-line separated; the first is the main checkout, which is never removed.
 wt_info=$(git worktree list --porcelain | awk -v b="branch refs/heads/$branch" '
   BEGIN { RS = ""; FS = "\n" }
   NR > 1 { hit = 0; lock = ""
@@ -55,14 +46,9 @@ wt_info=$(git worktree list --porcelain | awk -v b="branch refs/heads/$branch" '
 if [[ -n "$wt_info" ]]; then
   { read -r wt; read -r lock || true; } <<<"$wt_info"
   if [[ -n "$lock" ]]; then
-    # Claude Code locks with "claude session <id> (pid <n> ...)"; any other lock is someone's choice.
     pid_re='\(pid ([0-9]+)'
-    if ! [[ "$lock" =~ $pid_re ]]; then
-      echo "stop: worktree $wt is locked ($lock); unlock it yourself if it can go" >&2
-      exit 1
-    fi
-    if kill -0 "${BASH_REMATCH[1]}" 2>/dev/null; then
-      echo "stop: session pid ${BASH_REMATCH[1]} is still using worktree $wt; exit that session first" >&2
+    if ! [[ "$lock" =~ $pid_re ]] || kill -0 "${BASH_REMATCH[1]}" 2>/dev/null; then
+      echo "stop: worktree $wt is $lock; exit that session or unlock it first" >&2
       exit 1
     fi
     git worktree unlock "$wt"

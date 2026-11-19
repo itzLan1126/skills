@@ -53,6 +53,7 @@ class ClosePrTest(unittest.TestCase):
         result = self.run_script('MERGED')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('remote branch: deleted', result.stdout)
+        self.assertIn(f'local branch: deleted (was {self.head[:7]}', result.stdout)
         self.assertEqual(self.git('branch', '--show-current').strip(), 'main')
         self.assertNotIn('feat', self.git('branch'))
         self.assertNotIn('feat', self.git('branch', cwd=self.origin))
@@ -86,17 +87,7 @@ class ClosePrTest(unittest.TestCase):
         self.assertIn('after merge', self.git('log', '-1', '--format=%s', 'feat'))
         self.assertIn('feat', self.git('branch', cwd=self.origin))
 
-    def test_local_behind_pr_head_cleans_up(self):
-        subprocess.run(['git', 'commit', '-q', '--allow-empty', '-m', 'suggestion'], cwd=self.work,
-                       env=self.env, check=True)
-        head = self.git('rev-parse', 'HEAD').strip()
-        self.git('reset', '-q', '--hard', 'HEAD~1')
-        result = self.run_script('MERGED', head=head)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(f'local branch: deleted (was {self.head[:7]}', result.stdout)
-
     def test_fetches_unknown_pr_head(self):
-        # A commit added on GitHub (e.g. an accepted suggestion) that this clone has never fetched.
         other = self.work.parent / 'other'
         subprocess.run(['git', 'clone', '-q', '-b', 'feat', str(self.origin), str(other)], check=True, env=self.env)
         for cmd in (['commit', '-q', '--allow-empty', '-m', 'suggestion'], ['push', '-q', 'origin', 'HEAD:refs/pull/7/head']):
