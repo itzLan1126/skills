@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Usage: git_commit.py lint [file] | hunks <path> | stage <path> <id>,<id> | commit [file]  (message: stdin by default)
+# Exit codes: 0 done, 1 stopped (see message), 2 usage error; commit only: 3 created but a hook changed it, 4 merge, cherry-pick, revert, or conflict in progress.
 """Deterministic commit helpers: lint a message, stage hunks, commit and verify."""
 import argparse
 import hashlib
@@ -62,7 +64,6 @@ def cmd_lint(args):
 
 
 def file_hunks(path):
-    # Explicit prefixes keep the patch applicable whatever the user's diff config is.
     diff = git('diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '--', path).stdout
     if not diff:
         if git('ls-files', '--error-unmatch', '--', path, check=False).returncode:
@@ -77,8 +78,6 @@ def file_hunks(path):
 
 
 def hunk_id(hunk):
-    # Hash the worktree start line and body. Staging other hunks changes neither, so the ID
-    # stays valid; the start line keeps identical hunks distinct; editing the file invalidates it.
     header, _, body = hunk.partition('\n')
     start = re.match(r'@@ -\S+ \+(\d+)', header)[1]
     return hashlib.sha1(f'{start}\n{body}'.encode()).hexdigest()[:7]
@@ -100,7 +99,6 @@ def cmd_stage(args):
         if ids.count(pick) != 1:
             sys.exit(f'error: hunk {pick!r} is unknown or ambiguous; re-run hunks for current IDs')
     chosen = [hunk for hunk, id_ in zip(hunks, ids) if id_ in picks]
-    # git apply is atomic: on any failure the index stays unchanged.
     git('apply', '--cached', input=header + ''.join(chosen))
     print(f'staged {len(chosen)} of {len(hunks)} hunks in {args.path}')
     return 0
