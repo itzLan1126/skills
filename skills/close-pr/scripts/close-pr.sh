@@ -8,15 +8,20 @@ pr="${1:-}"
 pr="${pr#\#}"
 [[ "$pr" =~ ^[0-9]+$ ]] || { echo "usage: close-pr.sh <pr_number>" >&2; exit 2; }
 
+if [[ "$(git rev-parse --absolute-git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ]]; then
+  echo "stop: this is a linked worktree; run from the main checkout instead" >&2
+  exit 1
+fi
+
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "stop: working tree has uncommitted or untracked changes; commit or stash them first" >&2
   exit 1
 fi
 
-info=$(gh pr view "$pr" --json state,headRefName,isCrossRepository \
-  --jq '[.state, .headRefName, .isCrossRepository] | @tsv') \
+info=$(gh pr view "$pr" --json state,headRefName,isCrossRepository,headRefOid \
+  --jq '[.state, .headRefName, .isCrossRepository, .headRefOid] | @tsv') \
   || { echo "stop: PR #$pr not found" >&2; exit 1; }
-IFS=$'\t' read -r state branch cross <<<"$info"
+IFS=$'\t' read -r state branch cross head <<<"$info"
 echo "pr: #$pr $state ($branch)"
 
 if [[ "$state" == "OPEN" ]]; then
@@ -25,6 +30,47 @@ if [[ "$state" == "OPEN" ]]; then
 fi
 
 default=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)
+
+# Squash and rebase merges need branch -D, which would also drop commits made after the PR's last
+# push. Stop unless every local commit is already in the PR head.
+local_tip=$(git rev-parse --verify --quiet "refs/heads/$branch" || true)
+# The PR head may exist only on GitHub (e.g. an accepted suggestion); refs/pull/<n>/head outlives the branch.
+if [[ -n "$local_tip" ]] && ! git cat-file -e "$head^{commit}" 2>/dev/null; then
+  git fetch --quiet origin "refs/pull/$pr/head" || true
+fi
+if [[ "$branch" != "$default" && -n "$local_tip" ]] && ! git merge-base --is-ancestor "$local_tip" "$head" 2>/dev/null; then
+  echo "stop: local $branch has commits that are not in PR #$pr; push or move them first" >&2
+  exit 1
+fi
+
+# The branch can't be deleted while a linked worktree has it checked out. Remove that worktree
+# only when no live session holds its lock and git agrees it has no local changes (no --force).
+git worktree prune
+# Records are blank-line separated; the first is the main checkout, which is never removed.
+wt_info=$(git worktree list --porcelain | awk -v b="branch refs/heads/$branch" '
+  BEGIN { RS = ""; FS = "\n" }
+  NR > 1 { hit = 0; lock = ""
+    for (i = 1; i <= NF; i++) { if ($i == b) hit = 1; if ($i ~ /^locked/) lock = $i }
+    if (hit) { print substr($1, 10); print lock; exit } }')
+if [[ -n "$wt_info" ]]; then
+  { read -r wt; read -r lock || true; } <<<"$wt_info"
+  if [[ -n "$lock" ]]; then
+    # Claude Code locks with "claude session <id> (pid <n> ...)"; any other lock is someone's choice.
+    pid_re='\(pid ([0-9]+)'
+    if ! [[ "$lock" =~ $pid_re ]]; then
+      echo "stop: worktree $wt is locked ($lock); unlock it yourself if it can go" >&2
+      exit 1
+    fi
+    if kill -0 "${BASH_REMATCH[1]}" 2>/dev/null; then
+      echo "stop: session pid ${BASH_REMATCH[1]} is still using worktree $wt; exit that session first" >&2
+      exit 1
+    fi
+    git worktree unlock "$wt"
+  fi
+  git worktree remove "$wt" \
+    || { echo "stop: worktree $wt has local changes; commit or remove them first" >&2; exit 1; }
+  echo "worktree: removed $wt"
+fi
 
 if [[ "$cross" == "true" ]]; then
   echo "remote branch: skipped (fork)"
@@ -47,7 +93,7 @@ if [[ "$branch" == "$default" ]]; then
   echo "local branch: skipped (default branch)"
 elif git show-ref --verify --quiet "refs/heads/$branch"; then
   git branch --quiet -D "$branch"
-  echo "local branch: deleted"
+  echo "local branch: deleted (was $(git rev-parse --short "$local_tip"))"
 else
   echo "local branch: not found"
 fi

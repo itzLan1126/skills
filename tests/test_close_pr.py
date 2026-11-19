@@ -9,7 +9,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'close-pr' / 'scripts'
 FAKE_GH = '''#!/bin/sh
 echo "$*" >> "$FAKE_GH_LOG"
 case "$1 $2" in
-  "pr view") printf '%s\\tfeat\\tfalse\\n' "$FAKE_GH_STATE" ;;
+  "pr view") printf '%s\\tfeat\\tfalse\\t%s\\n' "$FAKE_GH_STATE" "$FAKE_GH_HEAD" ;;
   "repo view") echo main ;;
   api*) echo false ;;
 esac
@@ -40,10 +40,11 @@ class ClosePrTest(unittest.TestCase):
                     ['-C', str(self.work), 'commit', '-q', '--allow-empty', '-m', 'feat'],
                     ['-C', str(self.work), 'push', '-q', '-u', 'origin', 'feat']):
             subprocess.run(['git', *cmd], check=True, env=self.env)
+        self.head = self.git('rev-parse', 'feat').strip()
 
-    def run_script(self, state):
+    def run_script(self, state, head=None):
         return subprocess.run(['bash', str(SCRIPT), '#7'], cwd=self.work, capture_output=True, text=True,
-                              env={**self.env, 'FAKE_GH_STATE': state})
+                              env={**self.env, 'FAKE_GH_STATE': state, 'FAKE_GH_HEAD': head or self.head})
 
     def git(self, *args, cwd=None):
         return subprocess.run(['git', *args], cwd=cwd or self.work, capture_output=True, text=True).stdout
@@ -75,6 +76,99 @@ class ClosePrTest(unittest.TestCase):
         self.assertIn('uncommitted', result.stderr)
         self.assertFalse(self.log.exists())
         self.assertIn('feat', self.git('branch', cwd=self.origin))
+
+    def test_commits_after_pr_head_stop(self):
+        subprocess.run(['git', 'commit', '-q', '--allow-empty', '-m', 'after merge'], cwd=self.work,
+                       env=self.env, check=True)
+        result = self.run_script('MERGED')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('not in PR #7', result.stderr)
+        self.assertIn('after merge', self.git('log', '-1', '--format=%s', 'feat'))
+        self.assertIn('feat', self.git('branch', cwd=self.origin))
+
+    def test_local_behind_pr_head_cleans_up(self):
+        subprocess.run(['git', 'commit', '-q', '--allow-empty', '-m', 'suggestion'], cwd=self.work,
+                       env=self.env, check=True)
+        head = self.git('rev-parse', 'HEAD').strip()
+        self.git('reset', '-q', '--hard', 'HEAD~1')
+        result = self.run_script('MERGED', head=head)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f'local branch: deleted (was {self.head[:7]}', result.stdout)
+
+    def test_fetches_unknown_pr_head(self):
+        # A commit added on GitHub (e.g. an accepted suggestion) that this clone has never fetched.
+        other = self.work.parent / 'other'
+        subprocess.run(['git', 'clone', '-q', '-b', 'feat', str(self.origin), str(other)], check=True, env=self.env)
+        for cmd in (['commit', '-q', '--allow-empty', '-m', 'suggestion'], ['push', '-q', 'origin', 'HEAD:refs/pull/7/head']):
+            subprocess.run(['git', *cmd], cwd=other, check=True, env=self.env)
+        head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=other, capture_output=True, text=True).stdout.strip()
+        result = self.run_script('MERGED', head=head)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('feat', self.git('branch'))
+
+    def add_worktree(self):
+        """Move feat out of the main checkout into a linked worktree, as a Claude Code session would."""
+        wt = self.work / '.claude' / 'worktrees' / 'feat'
+        self.git('switch', '-q', 'main')
+        self.git('worktree', 'add', '-q', str(wt), 'feat')
+        (self.work / '.git' / 'info' / 'exclude').write_text('.claude/worktrees/\n')
+        return wt
+
+    def assert_untouched(self, wt):
+        self.assertTrue(wt.exists())
+        self.assertIn('feat', self.git('branch'))
+        self.assertIn('feat', self.git('branch', cwd=self.origin))
+
+    def test_removes_clean_worktree(self):
+        wt = self.add_worktree()
+        result = self.run_script('MERGED')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('worktree: removed', result.stdout)
+        self.assertFalse(wt.exists())
+        self.assertNotIn('feat', self.git('branch'))
+        self.assertNotIn('feat', self.git('branch', cwd=self.origin))
+
+    def test_removes_worktree_with_stale_lock(self):
+        wt = self.add_worktree()
+        dead = subprocess.Popen(['true'])
+        dead.wait()
+        self.git('worktree', 'lock', '--reason', f'claude session x (pid {dead.pid} start t)', str(wt))
+        result = self.run_script('MERGED')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(wt.exists())
+
+    def test_worktree_in_use_stops(self):
+        wt = self.add_worktree()
+        self.git('worktree', 'lock', '--reason', f'claude session x (pid {os.getpid()} start t)', str(wt))
+        result = self.run_script('MERGED')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'pid {os.getpid()}', result.stderr)
+        self.assert_untouched(wt)
+
+    def test_manual_lock_stops(self):
+        wt = self.add_worktree()
+        self.git('worktree', 'lock', '--reason', 'on usb drive', str(wt))
+        result = self.run_script('MERGED')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('on usb drive', result.stderr)
+        self.assert_untouched(wt)
+
+    def test_dirty_worktree_stops(self):
+        wt = self.add_worktree()
+        (wt / 'scratch.txt').write_text('x')
+        result = self.run_script('MERGED')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('local changes', result.stderr)
+        self.assert_untouched(wt)
+
+    def test_run_inside_worktree_stops(self):
+        wt = self.add_worktree()
+        result = subprocess.run(['bash', str(SCRIPT), '7'], cwd=wt, capture_output=True, text=True,
+                                env={**self.env, 'FAKE_GH_STATE': 'MERGED'})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('main checkout', result.stderr)
+        self.assertFalse(self.log.exists())
+        self.assert_untouched(wt)
 
 
 if __name__ == '__main__':
