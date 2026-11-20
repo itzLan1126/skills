@@ -1,16 +1,16 @@
 ---
-name: close-pr
-description: Clean up after a merged or closed GitHub PR by deleting its remote and local branch and returning to the default branch. Use only when the user explicitly invokes /close-pr or asks to clean up a specific PR. Never closes or merges an open PR.
+name: clean-pr
+description: Clean up after a merged or closed GitHub PR by deleting its remote and local branch and returning to the default branch. Use only when the user explicitly invokes /clean-pr or asks to clean up a specific PR. Never closes or merges an open PR.
 ---
 
-# Close PR
+# Clean PR
 
 Run the bundled script. It performs every step and safety check; do not run the steps yourself.
 
 ## Resolve the PR number
 
-- `/close-pr #<n>` or `/close-pr <n>`: use `<n>`.
-- Bare `/close-pr`: use the PR created earlier in this conversation (for example, the URL or number printed by `gh pr create`). Never infer the PR from the current branch.
+- `/clean-pr #<n>` or `/clean-pr <n>`: use `<n>`.
+- Bare `/clean-pr`: use the PR created earlier in this conversation (for example, the URL or number printed by `gh pr create`). Never infer the PR from the current branch.
   - No PR in this conversation: stop and ask the user for the number.
   - More than one PR: list them and ask which one.
 
@@ -19,7 +19,7 @@ Run the bundled script. It performs every step and safety check; do not run the 
 From the repository root:
 
 ```bash
-bash <skill-dir>/scripts/close-pr.sh <n>
+bash <skill-dir>/scripts/clean-pr.sh <n>
 ```
 
 `<skill-dir>` is the directory containing this file.

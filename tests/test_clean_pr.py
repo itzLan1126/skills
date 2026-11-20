@@ -1,11 +1,11 @@
-"""close-pr.sh against a temp repo, a local bare origin, and a fake gh."""
+"""clean-pr.sh against a temp repo, a local bare origin, and a fake gh."""
 from pathlib import Path
 import os
 import subprocess
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'close-pr' / 'scripts' / 'close-pr.sh'
+SCRIPT = Path(__file__).resolve().parents[1] / 'skills' / 'clean-pr' / 'scripts' / 'clean-pr.sh'
 FAKE_GH = '''#!/bin/sh
 echo "$*" >> "$FAKE_GH_LOG"
 case "$1 $2" in
@@ -16,7 +16,7 @@ esac
 '''
 
 
-class ClosePrTest(unittest.TestCase):
+class CleanPrTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

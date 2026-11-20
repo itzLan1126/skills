@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Clean up after a merged or closed PR: delete its remote and local branch, return to the default branch.
-# Usage: close-pr.sh <pr_number>
+# Usage: clean-pr.sh <pr_number>
 # Exit codes: 0 done, 1 stopped (see message), 2 usage error.
 set -euo pipefail
 
 pr="${1:-}"
 pr="${pr#\#}"
-[[ "$pr" =~ ^[0-9]+$ ]] || { echo "usage: close-pr.sh <pr_number>" >&2; exit 2; }
+[[ "$pr" =~ ^[0-9]+$ ]] || { echo "usage: clean-pr.sh <pr_number>" >&2; exit 2; }
 
 if [[ "$(git rev-parse --absolute-git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ]]; then
   echo "stop: this is a linked worktree; run from the main checkout instead" >&2

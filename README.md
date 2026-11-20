@@ -16,7 +16,7 @@ npx skills add itzLan1126/skills
 
 | Skill                                      | Description                                                                                             | Install                                               |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| [`close-pr`](skills/close-pr/SKILL.md)     | Clean up local and remote branches and switch back to the default branch after a PR is merged or closed | `npx skills add itzLan1126/skills --skill close-pr`   |
+| [`clean-pr`](skills/clean-pr/SKILL.md)     | Clean up local and remote branches and switch back to the default branch after a PR is merged or closed | `npx skills add itzLan1126/skills --skill clean-pr`   |
 | [`git-commit`](skills/git-commit/SKILL.md) | Inspect Git changes, organize logical commits, and write Conventional Commits messages                  | `npx skills add itzLan1126/skills --skill git-commit` |
 
 ## License
